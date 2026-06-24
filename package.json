@@ -10,8 +10,6 @@
     "dev:all": "concurrently \"npm run server\" \"npm run dev\""
   },
   "dependencies": {
-    "@clerk/clerk-react": "^5.61.6",
-    "@clerk/express": "^2.1.21",
     "@clerk/react": "^6.7.1",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.1",

@@ -77,7 +77,7 @@ export function LogoMain({ size = 'md', className = '', showText = true }: LogoP
             className={`${s.text} font-extrabold tracking-tight text-foreground`}
             style={{ fontFamily: 'var(--font-poppins), sans-serif' }}
           >
-            StyleSync
+            OUTFYT
           </div>
           {size !== 'sm' && (
             <div className="text-[0.65rem] font-bold tracking-[0.25em] uppercase text-foreground/40 mt-[-2px]" style={{ fontFamily: 'var(--font-poppins)' }}>

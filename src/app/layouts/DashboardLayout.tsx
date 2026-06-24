@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, useLocation } from 'react-router';
 import {
-  Home, MessageCircle, Heart, Settings, LogOut, Menu, X, History, Crown, Camera
+  Home, MessageCircle, Heart, Settings, Menu, X, History, Crown, Camera
 } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -11,7 +11,7 @@ import { useStyleSync } from '@/context/StyleSyncContext';
 export function DashboardLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const navItems = [
@@ -80,17 +80,6 @@ export function DashboardLayout() {
           </div>
         </div>
       </div>
-      <button
-        onClick={() => {
-          logout();
-          navigate('/');
-        }}
-        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-500 hover:text-red-500 transition-colors rounded-xl hover:bg-red-50"
-        style={{ fontFamily: 'var(--font-inter)' }}
-      >
-        <LogOut className="w-4 h-4" />
-        Logout
-      </button>
     </div>
   );
 

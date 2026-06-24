@@ -16,7 +16,7 @@ import {
   type HistoryEntry,
   type OutfitGenerateParams,
 } from '@/lib/api';
-import { useUser } from '@clerk/clerk-react';
+import { useAuth } from './AuthContext';
 
 interface StyleSyncContextValue {
 
@@ -47,7 +47,7 @@ interface StyleSyncContextValue {
 const StyleSyncContext = createContext<StyleSyncContextValue | null>(null);
 
 export function StyleSyncProvider({ children }: { children: ReactNode }) {
-  const { user } = useUser();
+  const { user } = useAuth();
 
   const [memory, setMemory] = useState<StyleMemory | null>(null);
   const [weather, setWeather] = useState<Weather | null>(null);

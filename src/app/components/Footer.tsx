@@ -13,7 +13,7 @@ export function Footer() {
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
               <span className="text-2xl" style={{ fontFamily: 'var(--font-sacramento)' }}>
-                StyleSync AI
+                OUTFYT
               </span>
             </div>
             <p
@@ -131,7 +131,7 @@ export function Footer() {
             className="text-sm text-foreground/50"
             style={{ fontFamily: 'var(--font-poppins)' }}
           >
-            © 2026 StyleSync AI. All rights reserved.
+            © 2026 OUTFYT. All rights reserved.
           </p>
 
           {/* Social links */}

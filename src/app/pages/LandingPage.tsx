@@ -12,7 +12,7 @@ export function LandingPage() {
   const navigate = useNavigate();
 
   const testimonials = [
-    { name: 'Priya S.', city: 'Jaipur', text: 'StyleSync feels like ChatGPT for my closet. I upload once and it just knows me.', style: 'var(--font-caveat)' },
+    { name: 'Priya S.', city: 'Jaipur', text: 'OUTFYT feels like ChatGPT for my closet. I upload once and it just knows me.', style: 'var(--font-caveat)' },
     { name: 'Arjun M.', city: 'Delhi', text: 'The weather + occasion combo is scary accurate. No more sweating in the wrong jacket.', style: 'var(--font-poppins)' },
     { name: 'Sneha K.', city: 'Mumbai', text: 'Repeat outfit detection saved me from wearing the same fit three days in a row 😅', style: 'var(--font-satisfy)' },
   ];

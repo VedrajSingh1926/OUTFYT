@@ -7,7 +7,6 @@ import {
   type ReactNode,
 } from 'react';
 import { api, type User } from '@/lib/api';
-import { useUser, useClerk } from '@clerk/clerk-react';
 
 interface AuthContextValue {
   user: User | null;
@@ -20,49 +19,29 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { user: clerkUser, isLoaded } = useUser();
-  const { signOut } = useClerk();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const { session } = useClerk();
   const refreshUser = useCallback(async () => {
-    if (!clerkUser) {
-      setUser(null);
-      localStorage.removeItem('stylesync_token');
-      localStorage.removeItem('stylesync_user');
-      return;
-    }
     try {
-      // Sync Clerk user with backend by passing the real JWT token
-      let token = null;
-      if (session) {
-        token = await session.getToken();
-      }
-      if (token) {
-        localStorage.setItem('stylesync_token', token);
-      }
+      // Mock an auth token so backend recognizes we bypass login
+      localStorage.setItem('stylesync_token', 'demo_token');
       
       const { user: u } = await api.user.profile();
       setUser(u);
       localStorage.setItem('stylesync_user', JSON.stringify(u));
     } catch {
-      // fallback if profile fails
-      const fallbackUser: User = { id: clerkUser.id, email: clerkUser.primaryEmailAddress?.emailAddress || '', name: clerkUser.fullName || '' };
+      const fallbackUser: User = { id: 'demo_user', email: 'user@clerk.com', name: 'Demo User' };
       setUser(fallbackUser);
     }
-  }, [clerkUser, session]);
+  }, []);
 
   useEffect(() => {
-    if (!isLoaded) return;
     refreshUser().finally(() => setLoading(false));
-  }, [isLoaded, refreshUser]);
+  }, [refreshUser]);
 
   const logout = () => {
-    signOut();
-    localStorage.removeItem('stylesync_token');
-    localStorage.removeItem('stylesync_user');
-    setUser(null);
+    // No-op for demo user mode
   };
 
   return (

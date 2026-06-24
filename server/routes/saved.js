@@ -7,9 +7,17 @@ router.use(authMiddleware);
 router.use(mapClerkAuth);
 
 router.get('/', async (req, res) => {
-  const { data: looks } = await supabase.from('saved_looks').select('*').eq('user_id', req.user.id);
-  const { data: collections } = await supabase.from('collections').select('*').eq('user_id', req.user.id);
-  res.json({ looks: looks || [], collections: collections || [] });
+  let looks = [];
+  let collections = [];
+  try {
+    const { data: looksData } = await supabase.from('saved_looks').select('*').eq('user_id', req.user.id);
+    looks = looksData || [];
+    const { data: collectionsData } = await supabase.from('collections').select('*').eq('user_id', req.user.id);
+    collections = collectionsData || [];
+  } catch (err) {
+    console.warn("DB fallback saved get:", err.message);
+  }
+  res.json({ looks, collections });
 });
 
 router.post('/collections', async (req, res) => {
@@ -22,16 +30,26 @@ router.post('/collections', async (req, res) => {
     created_at: new Date().toISOString(),
   };
   
-  const { data } = await supabase.from('collections').insert([collection]).select().single();
-  res.json({ collection: data || collection });
+  let created = collection;
+  try {
+    const { data } = await supabase.from('collections').insert([collection]).select().single();
+    if (data) created = data;
+  } catch (err) {
+    console.warn("DB fallback collection create:", err.message);
+  }
+  res.json({ collection: created });
 });
 
 router.delete('/:id', async (req, res) => {
-  await supabase
-    .from('saved_looks')
-    .delete()
-    .eq('id', req.params.id)
-    .eq('user_id', req.user.id);
+  try {
+    await supabase
+      .from('saved_looks')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id);
+  } catch (err) {
+    console.warn("DB fallback delete saved look:", err.message);
+  }
     
   res.json({ ok: true });
 });

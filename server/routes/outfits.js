@@ -9,13 +9,21 @@ router.use(authMiddleware);
 router.use(mapClerkAuth);
 
 async function getUserContext(userId, body) {
-  const { data: user } = await supabase.from('users').select('*').eq('id', userId).single();
-  const { data: wardrobeItems } = await supabase.from('wardrobe_items').select('*').eq('user_id', userId).eq('archived', false);
-  const wardrobe = wardrobeItems || [];
+  let user = null;
+  let wardrobe = [];
+  let history = [];
   
-  const { data: historyItems } = await supabase.from('outfit_history').select('*').eq('user_id', userId).order('created_at', { ascending: false });
-  const history = historyItems || [];
-  
+  try {
+    const { data: userData } = await supabase.from('users').select('*').eq('id', userId).single();
+    user = userData;
+    const { data: wardrobeItems } = await supabase.from('wardrobe_items').select('*').eq('user_id', userId).eq('archived', false);
+    wardrobe = wardrobeItems || [];
+    const { data: historyItems } = await supabase.from('outfit_history').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+    history = historyItems || [];
+  } catch (err) {
+    console.warn("DB fetch failed in getUserContext, using empty defaults:", err.message);
+  }
+
   const memory = buildStyleMemory(userId, wardrobe, history, user?.profile);
 
   return {
@@ -68,7 +76,11 @@ router.post('/generate', async (req, res) => {
       location: homeLoc,
       ...(activeWeather && !useDestination ? { lastWeather: activeWeather } : {})
     };
-    await supabase.from('users').update({ profile: newProfile }).eq('id', req.user.id);
+    try {
+      await supabase.from('users').update({ profile: newProfile }).eq('id', req.user.id);
+    } catch (err) {
+      console.warn("DB update failed in outfits generate:", err.message);
+    }
   }
 
   const mode = req.body.mode === 'variation' ? 'variation' : 'fresh';
@@ -87,7 +99,11 @@ router.post('/generate', async (req, res) => {
     context,
     created_at: new Date().toISOString(),
   };
-  await supabase.from('outfit_history').insert([historyRecord]);
+  try {
+    await supabase.from('outfit_history').insert([historyRecord]);
+  } catch (err) {
+    console.warn("DB insert failed in outfits generate:", err.message);
+  }
 
   res.json({ outfits, sessionId, memory, weather: context.weather });
 });
@@ -103,7 +119,11 @@ router.post('/save', async (req, res) => {
     saved_at: new Date().toISOString(),
   };
 
-  await supabase.from('saved_looks').insert([saved]);
+  try {
+    await supabase.from('saved_looks').insert([saved]);
+  } catch (err) {
+    console.warn("DB insert failed in save look:", err.message);
+  }
   
   const historyRecord = {
     id: crypto.randomUUID(),
@@ -112,17 +132,29 @@ router.post('/save', async (req, res) => {
     outfit: saved,
     created_at: new Date().toISOString(),
   };
-  await supabase.from('outfit_history').insert([historyRecord]);
+  try {
+    await supabase.from('outfit_history').insert([historyRecord]);
+  } catch (err) {
+    console.warn("DB insert failed in save look history:", err.message);
+  }
 
   res.json({ saved });
 });
 
 router.get('/memory', async (req, res) => {
-  const { data: user } = await supabase.from('users').select('*').eq('id', req.user.id).single();
-  const { data: wardrobeItems } = await supabase.from('wardrobe_items').select('*').eq('user_id', req.user.id);
-  const wardrobe = wardrobeItems || [];
-  const { data: historyItems } = await supabase.from('outfit_history').select('*').eq('user_id', req.user.id);
-  const history = historyItems || [];
+  let user = null;
+  let wardrobe = [];
+  let history = [];
+  try {
+    const { data: userData } = await supabase.from('users').select('*').eq('id', req.user.id).single();
+    user = userData;
+    const { data: wardrobeItems } = await supabase.from('wardrobe_items').select('*').eq('user_id', req.user.id);
+    wardrobe = wardrobeItems || [];
+    const { data: historyItems } = await supabase.from('outfit_history').select('*').eq('user_id', req.user.id);
+    history = historyItems || [];
+  } catch (err) {
+    console.warn("DB fetch failed in memory route:", err.message);
+  }
 
   const memory = buildStyleMemory(req.user.id, wardrobe, history, user?.profile);
   res.json({ memory });

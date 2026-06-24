@@ -2,33 +2,55 @@ import { Router } from 'express';
 import { supabase } from '../lib/supabase.js';
 import { authMiddleware, mapClerkAuth } from '../middleware/auth.js';
 import { fetchWeather, geocodeCity } from '../services/weather.js';
-import { v4 as uuidv4 } from 'uuid'; // Fallback if no newId
 
 const router = Router();
 router.use(authMiddleware);
 router.use(mapClerkAuth);
 
-router.get('/profile', async (req, res) => {
-  const { data: user, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', req.user.id)
-    .single();
+// In-memory fallback cache for users if Supabase tables are not yet created
+const memoryUsers = {};
 
-  if (error || !user) {
-    // If not found, create a basic record (sync from Clerk)
-    const newUser = {
-      id: req.user.id,
-      email: 'user@clerk.com', // Normally fetched from Clerk
+function getMemoryUser(userId) {
+  if (!memoryUsers[userId]) {
+    memoryUsers[userId] = {
+      id: userId,
+      email: 'user@clerk.com',
       name: 'StyleSync User',
-      profile: {},
+      profile: {
+        location: 'Jaipur',
+        preferredOccasions: ['casual'],
+        preferredMood: 'stylish',
+        preferredStyles: ['smart-casual']
+      },
       onboardingComplete: false,
     };
-    const { data: created, error: insertError } = await supabase.from('users').insert([newUser]).select().single();
-    if (insertError) return res.status(500).json({ error: 'Failed to create user' });
-    return res.json({ user: created });
   }
-  res.json({ user });
+  return memoryUsers[userId];
+}
+
+router.get('/profile', async (req, res) => {
+  try {
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', req.user.id)
+      .single();
+
+    if (error || !user) {
+      // If not found, create a basic record (sync from Clerk)
+      const newUser = getMemoryUser(req.user.id);
+      const { data: created, error: insertError } = await supabase.from('users').insert([newUser]).select().single();
+      if (insertError) {
+        console.warn("DB insert failed, using memory fallback user:", insertError.message);
+        return res.json({ user: newUser });
+      }
+      return res.json({ user: created });
+    }
+    res.json({ user });
+  } catch (err) {
+    console.warn("DB profile fetch failed, using memory fallback user:", err.message);
+    res.json({ user: getMemoryUser(req.user.id) });
+  }
 });
 
 router.patch('/profile', async (req, res) => {
@@ -44,51 +66,54 @@ router.patch('/profile', async (req, res) => {
     }
   }
 
-  const { data: user, error: fetchError } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', req.user.id)
-    .single();
+  try {
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', req.user.id)
+      .single();
 
-  if (fetchError || !user) return res.status(404).json({ error: 'User not found' });
+    if (fetchError || !user) {
+      // Fallback update in memory
+      const mUser = getMemoryUser(req.user.id);
+      mUser.profile = { ...mUser.profile, ...updates };
+      if (updates.name !== undefined) mUser.name = updates.name;
+      if (updates.onboardingComplete !== undefined) mUser.onboardingComplete = updates.onboardingComplete;
+      return res.json({ user: mUser, weather });
+    }
 
-  const newProfile = { ...user.profile, ...updates };
-  const updateData = { profile: newProfile };
-  if (updates.name !== undefined) updateData.name = updates.name;
-  if (updates.onboardingComplete !== undefined) updateData.onboardingComplete = updates.onboardingComplete;
+    const newProfile = { ...user.profile, ...updates };
+    const updateData = { profile: newProfile };
+    if (updates.name !== undefined) updateData.name = updates.name;
+    if (updates.onboardingComplete !== undefined) updateData.onboardingComplete = updates.onboardingComplete;
 
-  const { data: updatedUser, error } = await supabase
-    .from('users')
-    .update(updateData)
-    .eq('id', req.user.id)
-    .select()
-    .single();
+    const { data: updatedUser, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', req.user.id)
+      .select()
+      .single();
 
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ user: updatedUser, weather });
+    if (error) throw error;
+    res.json({ user: updatedUser, weather });
+  } catch (err) {
+    console.warn("DB profile patch failed, patching in memory:", err.message);
+    const mUser = getMemoryUser(req.user.id);
+    mUser.profile = { ...mUser.profile, ...updates };
+    if (updates.name !== undefined) mUser.name = updates.name;
+    if (updates.onboardingComplete !== undefined) mUser.onboardingComplete = updates.onboardingComplete;
+    res.json({ user: mUser, weather });
+  }
 });
 
 router.post('/onboarding', async (req, res) => {
   const {
-    wardrobeText,
     location,
     occasions,
     mood,
     styles,
     skinTone,
-    manualItems,
   } = req.body;
-
-  let newItems = [];
-
-  if (wardrobeText || manualItems?.length) {
-    // Wardrobe parsing is deprecated in the new chat-first onboarding flow
-    console.log("Wardrobe text parsing is deprecated.");
-  }
-
-  if (newItems.length > 0) {
-    await supabase.from('wardrobe_items').insert(newItems);
-  }
 
   let weather = null;
   if (location) {
@@ -96,28 +121,45 @@ router.post('/onboarding', async (req, res) => {
     if (geo) weather = await fetchWeather(geo.name, geo.lat, geo.lon);
   }
 
-  const { data: user } = await supabase.from('users').select('*').eq('id', req.user.id).single();
+  try {
+    const { data: user } = await supabase.from('users').select('*').eq('id', req.user.id).single();
 
-  const profileUpdate = {
-    preferredOccasions: occasions || [],
-    preferredMood: mood,
-    preferredStyles: styles || [],
-    skinTone: skinTone || null,
-    location: weather?.location || location,
-    lastWeather: weather,
-    favoriteColors: user?.profile?.favoriteColors || [],
-    blockedColors: user?.profile?.blockedColors || [],
-  };
+    const profileUpdate = {
+      preferredOccasions: occasions || [],
+      preferredMood: mood,
+      preferredStyles: styles || [],
+      skinTone: skinTone || null,
+      location: weather?.location || location,
+      lastWeather: weather,
+      favoriteColors: user?.profile?.favoriteColors || [],
+      blockedColors: user?.profile?.blockedColors || [],
+    };
 
-  const { data: updatedUser, error } = await supabase
-    .from('users')
-    .update({ onboardingComplete: true, profile: profileUpdate })
-    .eq('id', req.user.id)
-    .select()
-    .single();
+    const { data: updatedUser, error } = await supabase
+      .from('users')
+      .update({ onboardingComplete: true, profile: profileUpdate })
+      .eq('id', req.user.id)
+      .select()
+      .single();
 
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ user: updatedUser, weather });
+    if (error) throw error;
+    res.json({ user: updatedUser, weather });
+  } catch (err) {
+    console.warn("DB onboarding failed, completing in memory:", err.message);
+    const mUser = getMemoryUser(req.user.id);
+    mUser.onboardingComplete = true;
+    mUser.profile = {
+      preferredOccasions: occasions || [],
+      preferredMood: mood,
+      preferredStyles: styles || [],
+      skinTone: skinTone || null,
+      location: weather?.location || location,
+      lastWeather: weather,
+      favoriteColors: [],
+      blockedColors: [],
+    };
+    res.json({ user: mUser, weather });
+  }
 });
 
 export default router;

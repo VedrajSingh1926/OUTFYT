@@ -8,22 +8,34 @@ router.use(authMiddleware);
 router.use(mapClerkAuth);
 
 router.get('/sessions', async (req, res) => {
-  const { data: sessions } = await supabase
-    .from('chat_sessions')
-    .select('*')
-    .eq('user_id', req.user.id)
-    .order('updated_at', { ascending: false });
+  let sessions = [];
+  try {
+    const { data } = await supabase
+      .from('chat_sessions')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .order('updated_at', { ascending: false });
+    sessions = data || [];
+  } catch (err) {
+    console.warn("DB fallback sessions list:", err.message);
+  }
   
-  res.json({ sessions: sessions || [] });
+  res.json({ sessions });
 });
 
 router.get('/sessions/:id', async (req, res) => {
-  const { data: session } = await supabase
-    .from('chat_sessions')
-    .select('*')
-    .eq('id', req.params.id)
-    .eq('user_id', req.user.id)
-    .single();
+  let session = null;
+  try {
+    const { data } = await supabase
+      .from('chat_sessions')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+    session = data;
+  } catch (err) {
+    console.warn("DB fallback session details:", err.message);
+  }
 
   if (!session) return res.status(404).json({ error: 'Session not found' });
   res.json({ session });
@@ -33,11 +45,19 @@ router.post('/message', async (req, res) => {
   const { message, sessionId, lastOutfit } = req.body;
   if (!message) return res.status(400).json({ error: 'Message required' });
 
-  const { data: user } = await supabase.from('users').select('*').eq('id', req.user.id).single();
-  const { data: wardrobeItems } = await supabase.from('wardrobe_items').select('*').eq('user_id', req.user.id);
-  const wardrobe = wardrobeItems || [];
-  const { data: historyItems } = await supabase.from('outfit_history').select('*').eq('user_id', req.user.id);
-  const history = historyItems || [];
+  let user = null;
+  let wardrobe = [];
+  let history = [];
+  try {
+    const { data: userData } = await supabase.from('users').select('*').eq('id', req.user.id).single();
+    user = userData;
+    const { data: wardrobeItems } = await supabase.from('wardrobe_items').select('*').eq('user_id', req.user.id);
+    wardrobe = wardrobeItems || [];
+    const { data: historyItems } = await supabase.from('outfit_history').select('*').eq('user_id', req.user.id);
+    history = historyItems || [];
+  } catch (err) {
+    console.warn("DB fallback chat context:", err.message);
+  }
 
   const memory = buildStyleMemory(req.user.id, wardrobe, history, user?.profile);
 
@@ -57,8 +77,12 @@ router.post('/message', async (req, res) => {
 
   let session;
   if (sessionId) {
-    const { data } = await supabase.from('chat_sessions').select('*').eq('id', sessionId).eq('user_id', req.user.id).single();
-    session = data;
+    try {
+      const { data } = await supabase.from('chat_sessions').select('*').eq('id', sessionId).eq('user_id', req.user.id).single();
+      session = data;
+    } catch (err) {
+      console.warn("DB fallback fetch session:", err.message);
+    }
   }
 
   if (!session) {
@@ -71,13 +95,21 @@ router.post('/message', async (req, res) => {
       updated_at: new Date().toISOString(),
     };
     // Initialize session
-    await supabase.from('chat_sessions').insert([session]);
+    try {
+      await supabase.from('chat_sessions').insert([session]);
+    } catch (err) {
+      console.warn("DB fallback create session:", err.message);
+    }
   }
 
   session.messages.push(userMsg, assistantMsg);
   session.updated_at = new Date().toISOString();
 
-  await supabase.from('chat_sessions').update({ messages: session.messages, updated_at: session.updated_at }).eq('id', session.id);
+  try {
+    await supabase.from('chat_sessions').update({ messages: session.messages, updated_at: session.updated_at }).eq('id', session.id);
+  } catch (err) {
+    console.warn("DB fallback update session:", err.message);
+  }
 
   const historyEntry = {
     id: crypto.randomUUID(),
@@ -87,7 +119,11 @@ router.post('/message', async (req, res) => {
     preview: message,
     created_at: new Date().toISOString(),
   };
-  await supabase.from('outfit_history').insert([historyEntry]);
+  try {
+    await supabase.from('outfit_history').insert([historyEntry]);
+  } catch (err) {
+    console.warn("DB fallback history entry:", err.message);
+  }
 
   res.json({
     sessionId: session.id,

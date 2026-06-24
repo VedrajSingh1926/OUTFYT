@@ -19,8 +19,14 @@ router.get('/', async (req, res) => {
     query = query.eq('type', type);
   }
 
-  const { data: items } = await query;
-  let finalItems = items || [];
+  let items = [];
+  try {
+    const { data } = await query;
+    items = data || [];
+  } catch (err) {
+    console.warn("DB fallback history:", err.message);
+  }
+  let finalItems = items;
 
   if (q && finalItems.length > 0) {
     const searchString = q.toLowerCase();

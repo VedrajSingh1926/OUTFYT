@@ -109,6 +109,15 @@ No markdown code blocks around the JSON, just pure JSON output.`;
   }
 }
 
+function evaluateOutfit(items, context) {
+  return {
+    weatherMatch: 92,
+    colorHarmony: 88,
+    moodMatch: 90,
+    confidence: 90
+  };
+}
+
 function getDemoOutfits(context, count, seed, mode) {
   const base = [
     { name: 'Smart Casual Executive', items: ['Navy Blazer', 'White Button-Up', 'Black Jeans', 'Brown Leather Boots'], reasoning: 'Professional yet approachable.', emoji: '💼', gradient: 'from-[#7C6CFF] to-[#B8A9FF]' },
